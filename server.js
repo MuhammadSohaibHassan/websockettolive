@@ -1,48 +1,67 @@
+// server.js
 import express from "express";
 import { WebSocketServer } from "ws";
 import http from "http";
 
 const app = express();
-app.use(express.static("public"));
+app.use(express.static("public")); // serve your index.html and assets
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-let clients = [];
+// Use a Set instead of array for cleaner client management
+const clients = new Set();
 
 wss.on("connection", (ws) => {
-  clients.push(ws);
+  clients.add(ws);
 
   ws.on("message", (message) => {
     try {
-      const data = JSON.parse(message);
+      const data = JSON.parse(message.toString());
 
-      if (data.type === "ping") {
-        // Forward ping to partner
-        clients.forEach((client) => {
-          if (client !== ws && client.readyState === 1) {
-            client.send(JSON.stringify({ type: "forwardedPing", timestamp: data.timestamp }));
+      switch (data.type) {
+        case "ping":
+          // forward ping to all other clients
+          for (const client of clients) {
+            if (client !== ws && client.readyState === 1) {
+              client.send(
+                JSON.stringify({
+                  type: "forwardedPing",
+                  timestamp: data.timestamp,
+                })
+              );
+            }
           }
-        });
-      } else if (data.type === "echo") {
-        // Return echo to sender
-        clients.forEach((client) => {
-          if (client !== ws && client.readyState === 1) {
-            client.send(JSON.stringify({ type: "echoBack", timestamp: data.timestamp }));
+          break;
+
+        case "echo":
+          // echo back to sender via partner
+          for (const client of clients) {
+            if (client !== ws && client.readyState === 1) {
+              client.send(
+                JSON.stringify({
+                  type: "echoBack",
+                  timestamp: data.timestamp,
+                })
+              );
+            }
           }
-        });
+          break;
+
+        default:
+          console.warn("Unknown message type:", data.type);
       }
     } catch (err) {
-      console.error("Message parse error:", err);
+      console.error("Invalid message received:", err.message);
     }
   });
 
   ws.on("close", () => {
-    clients = clients.filter((c) => c !== ws);
+    clients.delete(ws);
   });
 });
 
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
 });
