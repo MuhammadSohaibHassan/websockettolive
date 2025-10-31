@@ -1,237 +1,173 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Realtime Sync Chat</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Sync Chat</title>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: monospace;
+      overflow: hidden;
+    }
 
-  body {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    font-family: monospace;
-    overflow: hidden;
-  }
+    .container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
 
-  .half {
-    flex: 1;
-    position: relative;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
+    .top {
+      flex: 1;
+      background: black;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      overflow-y: auto;
+    }
 
-  #top {
-    background: black;
-    color: white;
-  }
+    #display {
+      width: 100%;
+      text-align: center;
+      font-size: 1.4rem;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      box-sizing: border-box;
+      padding: 6px;
+    }
 
-  #bottom {
-    background: white;
-    color: black;
-  }
+    .bottom {
+      flex: 1;
+      background: white;
+      color: black;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      position: relative;
+    }
 
-  textarea {
-    width: 100%;
-    height: 100%;
-    border: none;
-    background: transparent;
-    resize: none;
-    outline: none;
-    text-align: center;
-    font-size: 22px;
-    line-height: 1.4;
-    overflow-y: auto;
-    padding: 0;
-  }
+    #input {
+      width: 100%;
+      height: 100%;
+      background: white;
+      color: black;
+      font-size: 1.4rem;
+      border: none;
+      outline: none;
+      resize: none;
+      font-family: monospace;
+      text-align: center;
+      line-height: 1.4;
+      padding: 6px;
+      box-sizing: border-box;
+      overflow-y: auto;
+    }
 
-  .status-dot {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: red;
-    z-index: 10;
-  }
+    #status {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: red;
+      z-index: 9999;
+      transition: background 0.3s;
+    }
 
-  .erase-btn {
-    position: absolute;
-    bottom: 15px;
-    right: 15px;
-    background: white;
-    border: 2px solid black;
-    border-radius: 50%;
-    width: 36px;
-    height: 36px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    cursor: pointer;
-    box-shadow: 0 0 6px rgba(0,0,0,0.3);
-    font-size: 18px;
-  }
+    #clearBtn {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      z-index: 9999;
+      cursor: pointer;
+      color: black;
+      font-size: 28px;
+      user-select: none;
+    }
 
-  .cursor-marker {
-    position: absolute;
-    width: 2px;
-    background: #2196f3;
-    animation: blink 1s infinite;
-  }
+    #clearBtn:hover {
+      opacity: 0.7;
+    }
 
-  .selection-overlay {
-    position: absolute;
-    background: rgba(33,150,243,0.3);
-    pointer-events: none;
-  }
-
-  @keyframes blink {
-    0%, 50%, 100% { opacity: 1; }
-    25%, 75% { opacity: 0; }
-  }
-</style>
+    #notice {
+      position: fixed;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.9rem;
+      font-weight: bold;
+      color: #555;
+      background: rgba(255,255,255,0.7);
+      padding: 2px 8px;
+      border-radius: 6px;
+      display: none;
+    }
+  </style>
 </head>
 <body>
-  <div id="top" class="half">
-    <div class="status-dot" id="statusDot"></div>
-    <textarea id="remoteText" readonly></textarea>
+  <div id="status"></div>
+  <div id="notice">Max 2 users allowed — waiting...</div>
+
+  <div class="container">
+    <div class="top">
+      <div id="display"></div>
+    </div>
+    <div class="bottom">
+      <textarea id="input" placeholder="Type..." spellcheck="false"></textarea>
+    </div>
   </div>
+  <span id="clearBtn" class="material-icons-outlined">clear</span>
 
-  <div id="bottom" class="half">
-    <textarea id="localText" placeholder="Type here..."></textarea>
-    <div class="erase-btn" id="eraseBtn">🗑️</div>
-  </div>
+  <script>
+    const wsProtocol = location.protocol === "https:" ? "wss" : "ws";
+    const socket = new WebSocket(`${wsProtocol}://${location.host}`);
+    const display = document.getElementById("display");
+    const input = document.getElementById("input");
+    const status = document.getElementById("status");
+    const clearBtn = document.getElementById("clearBtn");
+    const notice = document.getElementById("notice");
 
-<script>
-  // Use the same host as your deployed Render service
-  const wsProtocol = location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${wsProtocol}://${location.host}`);
+    let blocked = false;
 
-  const statusDot = document.getElementById("statusDot");
-  const localText = document.getElementById("localText");
-  const remoteText = document.getElementById("remoteText");
-  const eraseBtn = document.getElementById("eraseBtn");
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
 
-  let clientId = Math.random().toString(36).substr(2, 5);
-  let partnerCursor, partnerSelection;
+      if (data.type === "textSync") {
+        if (!blocked) {
+          display.textContent = data.text;
+          display.scrollTop = display.scrollHeight;
+        }
+      } else if (data.type === "status") {
+        status.style.background = data.color;
+        if (data.color === "yellow") {
+          blocked = true;
+          notice.style.display = "block";
+          input.disabled = true;
+        } else {
+          blocked = false;
+          notice.style.display = "none";
+          input.disabled = false;
+        }
+      }
+    };
 
-  // --- Utilities ---
-  function setStatus(color){ statusDot.style.background = color; }
-  function sendMessage(type, data={}) {
-    if(ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type, id: clientId, ...data }));
-  }
-
-  function keepLastLineVisible(el){ el.scrollTop = el.scrollHeight; }
-  function removeMarkers(){ if(partnerCursor) partnerCursor.remove(); if(partnerSelection) partnerSelection.remove(); }
-
-  // --- WebSocket ---
-  ws.onopen = () => setStatus("red");
-  ws.onclose = () => setStatus("red");
-  ws.onmessage = e => handleMessage(JSON.parse(e.data));
-
-  function handleMessage(d){
-    if(d.id===clientId) return;
-
-    switch(d.type){
-      case "status":
-        if(d.clients===1) setStatus("red");
-        else if(d.clients===2) setStatus("green");
-        else if(d.clients>=3) setStatus("yellow");
-        break;
-
-      case "text":
-        remoteText.value = d.text;
-        keepLastLineVisible(remoteText);
-        break;
-
-      case "cursor":
-        showRemoteCursor(d.cursorPos, d.selectionStart, d.selectionEnd);
-        break;
-
-      case "scroll":
-        remoteText.scrollTop = d.scroll;
-        break;
-
-      case "erase":
-        remoteText.value = "";
-        break;
-    }
-  }
-
-  // --- Local text ---
-  localText.addEventListener("input", () => {
-    sendMessage("text", { text: localText.value });
-    keepLastLineVisible(localText);
-  });
-
-  ["select","keyup","click","touchend"].forEach(evt=>{
-    localText.addEventListener(evt, sendCursorUpdate);
-  });
-
-  function sendCursorUpdate(){
-    sendMessage("cursor", {
-      cursorPos: localText.selectionStart,
-      selectionStart: localText.selectionStart,
-      selectionEnd: localText.selectionEnd
+    input.addEventListener("input", () => {
+      if (!blocked) {
+        socket.send(JSON.stringify({ type: "textSync", text: input.value }));
+      }
     });
-  }
 
-  // Scroll sync
-  let lastScroll = 0;
-  localText.addEventListener("scroll", () => {
-    if(Math.abs(localText.scrollTop - lastScroll) > 2){
-      lastScroll = localText.scrollTop;
-      sendMessage("scroll", { scroll: localText.scrollTop });
-    }
-  });
-
-  // Remote cursor + selection
-  function showRemoteCursor(pos, selStart, selEnd){
-    removeMarkers();
-    const text = remoteText.value;
-    const before = text.substring(0, pos);
-    const lines = before.split("\n");
-    const lineIndex = lines.length-1;
-    const charIndex = lines[lineIndex].length;
-
-    const lineHeight = 28;
-    const charWidth = 12;
-
-    const topOffset = lineIndex*lineHeight+6;
-    const leftOffset = charIndex*charWidth + (remoteText.clientWidth/2) - (text.length?0:10);
-
-    const cursor = document.createElement("div");
-    cursor.className = "cursor-marker";
-    cursor.style.top = topOffset+"px";
-    cursor.style.left = leftOffset+"px";
-    cursor.style.height = lineHeight+"px";
-    remoteText.parentElement.appendChild(cursor);
-    partnerCursor = cursor;
-
-    if(selEnd > selStart){
-      const selection = document.createElement("div");
-      selection.className = "selection-overlay";
-      selection.style.top = topOffset+"px";
-      selection.style.left = leftOffset+"px";
-      selection.style.width = (selEnd-selStart)*charWidth+"px";
-      selection.style.height = lineHeight+"px";
-      remoteText.parentElement.appendChild(selection);
-      partnerSelection = selection;
-    }
-  }
-
-  // --- Erase ---
-  eraseBtn.onclick = () => {
-    localText.value="";
-    sendMessage("text",{ text:"" });
-    sendMessage("erase",{});
-  };
-
-  // --- Heartbeat ping ---
-  setInterval(()=>sendMessage("ping",{}),1000);
-</script>
+    clearBtn.addEventListener("click", () => {
+      if (!blocked) {
+        input.value = "";
+        socket.send(JSON.stringify({ type: "textSync", text: "" }));
+      }
+    });
+  </script>
 </body>
 </html>
