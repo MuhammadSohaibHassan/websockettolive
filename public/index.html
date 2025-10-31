@@ -3,65 +3,111 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WebSocket Latency Tester</title>
+  <title>Latency Tester</title>
   <style>
     body {
       font-family: system-ui, sans-serif;
-      text-align: center;
-      margin: 60px;
+      background: #fafafa;
+      color: #222;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
     }
-    h2 {
-      margin-bottom: 20px;
-    }
-    button {
-      padding: 10px 20px;
-      font-size: 16px;
-      cursor: pointer;
-      margin-top: 10px;
-    }
-    #ping {
-      font-size: 24px;
-      font-weight: 600;
-      color: #0a58ca;
+    h1 {
+      font-size: 1.6rem;
+      margin-bottom: 0.5rem;
     }
     #status {
-      margin-bottom: 20px;
-      font-weight: 500;
+      font-size: 0.9rem;
+      color: #666;
+      margin-bottom: 1rem;
+    }
+    button {
+      padding: 0.6rem 1.2rem;
+      margin: 0.3rem;
+      border: none;
+      background: #0078ff;
+      color: white;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    #latency {
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin-top: 1rem;
     }
   </style>
 </head>
 <body>
-  <h2>WebSocket Latency Tester (A → S → B → S → A)</h2>
-  <div id="status">Connecting...</div>
-  <button id="pingBtn">Send Ping</button>
-  <p>Round-trip latency: <span id="ping">--</span> ms</p>
+  <h1>Latency Tester</h1>
+  <div id="status">Connecting to WebSocket...</div>
+  <div>
+    <button id="pingBtn" disabled>Send Ping</button>
+  </div>
+  <div id="latency"></div>
 
   <script>
-    const ws = new WebSocket(`ws://${location.host}`);
+    // === CONFIG ===
+    // Auto-detect if running locally or on Render
+    const WS_URL =
+      location.hostname === "localhost"
+        ? "ws://localhost:3000"
+        : `wss://${location.host}`;
+
     const status = document.getElementById("status");
-    const pingDisplay = document.getElementById("ping");
-    const button = document.getElementById("pingBtn");
+    const latencyText = document.getElementById("latency");
+    const pingBtn = document.getElementById("pingBtn");
 
-    ws.onopen = () => (status.textContent = "Connected");
-    ws.onclose = () => (status.textContent = "Disconnected");
+    let ws;
+    let lastTimestamp = 0;
 
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
+    function connectWebSocket() {
+      ws = new WebSocket(WS_URL);
 
-      if (data.type === "forwardedPing") {
-        // Partner side: echo back
-        ws.send(JSON.stringify({ type: "echo", timestamp: data.timestamp }));
-      } else if (data.type === "echoBack") {
-        // Origin side: calculate round trip
-        const latency = Date.now() - data.timestamp;
-        pingDisplay.textContent = latency;
+      ws.onopen = () => {
+        status.textContent = "Connected to server ✅";
+        pingBtn.disabled = false;
+      };
+
+      ws.onclose = () => {
+        status.textContent = "Disconnected. Reconnecting...";
+        pingBtn.disabled = true;
+        setTimeout(connectWebSocket, 2000); // auto-reconnect
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "forwardedPing") {
+          // Partner receives ping → send echo back
+          ws.send(JSON.stringify({ type: "echo", timestamp: data.timestamp }));
+        }
+
+        if (data.type === "echoBack") {
+          const now = performance.now();
+          const latency = now - data.timestamp;
+          latencyText.textContent = `Round Trip: ${latency.toFixed(2)} ms`;
+        }
+      };
+    }
+
+    connectWebSocket();
+
+    pingBtn.addEventListener("click", () => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        lastTimestamp = performance.now();
+        ws.send(JSON.stringify({ type: "ping", timestamp: lastTimestamp }));
+        latencyText.textContent = "Waiting for echo...";
       }
-    };
-
-    button.onclick = () => {
-      const timestamp = Date.now();
-      ws.send(JSON.stringify({ type: "ping", timestamp }));
-    };
+    });
   </script>
 </body>
 </html>
