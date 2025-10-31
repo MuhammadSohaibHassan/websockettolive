@@ -1,9 +1,8 @@
 {
-  "name": "latency-tester",
+  "name": "websockettolive",
   "version": "1.0.0",
-  "description": "Simple WebSocket latency tester (A→S→B→S→A)",
-  "main": "server.js",
   "type": "module",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
