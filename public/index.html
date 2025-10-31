@@ -33,7 +33,7 @@
     #display {
       width: 100%;
       text-align: center;
-      font-size: 1.3rem;
+      font-size: 1.4rem;
       white-space: pre-wrap;
       word-wrap: break-word;
       box-sizing: border-box;
@@ -55,7 +55,7 @@
       height: 100%;
       background: white;
       color: black;
-      font-size: 1.3rem;
+      font-size: 1.4rem;
       border: none;
       outline: none;
       resize: none;
@@ -71,11 +71,12 @@
       position: fixed;
       top: 8px;
       left: 8px;
-      width: 10px;
-      height: 10px;
+      width: 12px;
+      height: 12px;
       border-radius: 50%;
       background: red;
       z-index: 9999;
+      transition: background 0.3s;
     }
 
     #clearBtn {
@@ -92,10 +93,26 @@
     #clearBtn:hover {
       opacity: 0.7;
     }
+
+    #notice {
+      position: fixed;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.9rem;
+      font-weight: bold;
+      color: #555;
+      background: rgba(255,255,255,0.7);
+      padding: 2px 8px;
+      border-radius: 6px;
+      display: none;
+    }
   </style>
 </head>
 <body>
   <div id="status"></div>
+  <div id="notice">Max 2 users allowed — waiting...</div>
+
   <div class="container">
     <div class="top">
       <div id="display"></div>
@@ -113,25 +130,43 @@
     const input = document.getElementById("input");
     const status = document.getElementById("status");
     const clearBtn = document.getElementById("clearBtn");
+    const notice = document.getElementById("notice");
 
-    socket.onopen = () => { status.style.background = "limegreen"; };
-    socket.onclose = () => { status.style.background = "red"; };
+    let blocked = false;
 
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
+
       if (data.type === "textSync") {
-        display.textContent = data.text;
-        display.scrollTop = display.scrollHeight; // always show last line
+        if (!blocked) {
+          display.textContent = data.text;
+          display.scrollTop = display.scrollHeight;
+        }
+      } else if (data.type === "status") {
+        status.style.background = data.color;
+        if (data.color === "yellow") {
+          blocked = true;
+          notice.style.display = "block";
+          input.disabled = true;
+        } else {
+          blocked = false;
+          notice.style.display = "none";
+          input.disabled = false;
+        }
       }
     };
 
     input.addEventListener("input", () => {
-      socket.send(JSON.stringify({ type: "textSync", text: input.value }));
+      if (!blocked) {
+        socket.send(JSON.stringify({ type: "textSync", text: input.value }));
+      }
     });
 
     clearBtn.addEventListener("click", () => {
-      input.value = "";
-      socket.send(JSON.stringify({ type: "textSync", text: "" }));
+      if (!blocked) {
+        input.value = "";
+        socket.send(JSON.stringify({ type: "textSync", text: "" }));
+      }
     });
   </script>
 </body>
