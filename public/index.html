@@ -3,362 +3,141 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Realtime Chat</title>
+  <title>Private Live Chat</title>
   <style>
-    :root {
-      --gap: 12px;
-      --bg-top: #ffffff;
-      --text-top: #000000;
-      --bg-bottom: #000000;
-      --text-bottom: #ffffff;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
-    }
     html, body {
-      height: 100%;
       margin: 0;
-    }
-    body {
-      font-family: var(--mono);
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      background: #f0f0f0;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-    }
-
-    /* Container splits screen into two vertical halves */
-    .container {
-      display: flex;
-      flex-direction: column;
+      padding: 0;
       height: 100%;
+      font-family: monospace;
+      overflow: hidden;
     }
 
-    /* upper read-only area */
-    .top {
-      background: var(--bg-top);
-      color: var(--text-top);
-      flex: 1 1 60%;
-      padding: 16px;
-      overflow-y: auto;
+    .half {
+      width: 100%;
+      height: 50vh;
       display: flex;
-      flex-direction: column;
-      align-items: center; /* centers horizontally */
-      justify-content: flex-start;
-      box-sizing: border-box;
-      border-bottom: 1px solid #e6e6e6;
-    }
-
-    /* Each message appears centered horizontally */
-    .message {
-      max-width: 92%;
-      width: auto;
-      word-break: break-word;
+      justify-content: center;
+      align-items: center;
       text-align: center;
-      padding: 8px 10px;
-      margin: 6px 0;
-      border-radius: 6px;
-      background: transparent;
-      color: inherit;
-      font-size: 16px;
-    }
-    .meta {
-      font-size: 12px;
-      color: #666;
-      margin-top: 4px;
-    }
-
-    /* draft preview appears slightly muted */
-    .draft {
-      opacity: 0.9;
-      color: #111;
-      font-style: italic;
-      margin-top: 6px;
-    }
-
-    /* bottom input area */
-    .bottom {
-      background: var(--bg-bottom);
-      color: var(--text-bottom);
+      box-sizing: border-box;
       padding: 12px;
-      box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
 
-    .input-wrap {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      width: 100%;
+    .top {
+      background: #fff;
+      color: #000;
+      position: relative;
     }
 
-    textarea.input {
-      flex: 1;
-      min-height: 48px;
-      max-height: 40vh;
-      resize: none;
-      padding: 10px;
-      border: none;
-      outline: none;
-      color: var(--text-bottom);
-      background: transparent;
-      font-family: var(--mono);
-      font-size: 16px;
-      text-align: center; /* horizontally center text */
-    }
-
-    .controls {
-      display: flex;
-      gap: 8px;
-    }
-
-    button {
-      background: #1f1f1f;
+    .bottom {
+      background: #000;
       color: #fff;
-      border: 1px solid #444;
-      padding: 8px 12px;
-      border-radius: 6px;
-      font-family: var(--mono);
-      font-size: 14px;
+      position: relative;
     }
 
-    input.room {
-      padding: 8px;
-      border-radius: 6px;
-      border: 1px solid #ccc;
-      font-family: var(--mono);
-      font-size: 14px;
-      width: 160px;
-    }
-
-    /* small top bar with shareable link and participants */
-    .topbar {
+    textarea {
       width: 100%;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 6px;
+      height: 100%;
+      background: transparent;
+      border: none;
+      color: inherit;
+      font-family: inherit;
+      font-size: 16px;
+      text-align: center;
+      outline: none;
+      resize: none;
+      overflow-y: auto;
+      padding: 20px;
       box-sizing: border-box;
     }
-    .small {
-      font-size: 12px;
-      color: #666;
+
+    #statusDot {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: red;
     }
 
-    /* responsive rules */
+    #clearBtn {
+      position: absolute;
+      bottom: 12px;
+      right: 12px;
+      background: none;
+      border: 1px solid #666;
+      color: #fff;
+      border-radius: 50%;
+      font-size: 18px;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
     @media (max-width: 600px) {
-      .message { font-size: 14px; }
-      textarea.input { font-size: 15px; }
-      .top { padding: 12px; }
-      .bottom { padding: 10px; }
+      textarea {
+        font-size: 14px;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="top" id="top">
-      <div class="topbar">
-        <div>
-          <label class="small">Room:</label>
-          <input id="roomInput" class="room" />
-          <button id="joinBtn">Join</button>
-        </div>
-        <div class="small" id="participants">Participants: 0</div>
-      </div>
+  <div class="half top">
+    <div id="statusDot"></div>
+    <div id="peerText"></div>
+  </div>
 
-      <!-- chat messages appended here -->
-      <div id="messages" style="width:100%"></div>
-
-      <!-- draft from peer -->
-      <div id="peerDraft" class="draft" aria-live="polite"></div>
-    </div>
-
-    <div class="bottom">
-      <div class="input-wrap">
-        <textarea id="input" class="input" placeholder="Type here. Press Enter to send (Shift+Enter for newline)."></textarea>
-        <div class="controls">
-          <button id="sendBtn">Send</button>
-          <button id="clearBtn">Clear</button>
-        </div>
-      </div>
-    </div>
+  <div class="half bottom">
+    <textarea id="myInput" placeholder="Start typing..."></textarea>
+    <button id="clearBtn" title="Clear">🧹</button>
   </div>
 
   <script>
-    // WebSocket connection setup with secure/insecure detection
-    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-    const WS_BASE = `${protocol}//${location.host}`;
-
-    const roomInput = document.getElementById("roomInput");
-    const joinBtn = document.getElementById("joinBtn");
-    const participantsEl = document.getElementById("participants");
-    const messagesEl = document.getElementById("messages");
-    const peerDraftEl = document.getElementById("peerDraft");
-    const inputEl = document.getElementById("input");
-    const sendBtn = document.getElementById("sendBtn");
+    const peerText = document.getElementById("peerText");
+    const myInput = document.getElementById("myInput");
+    const statusDot = document.getElementById("statusDot");
     const clearBtn = document.getElementById("clearBtn");
 
-    let ws = null;
-    let roomId = null;
-    const userId = Math.random().toString(36).slice(2, 9);
+    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(`${protocol}//${location.host}`);
 
-    // Auto populate room from URL or generate
-    const urlParams = new URLSearchParams(location.search);
-    const initialRoom = urlParams.get("room") || '';
-    if (initialRoom) {
-      roomInput.value = initialRoom;
-    } else {
-      // generate short room id but do not auto-join
-      roomInput.value = Math.random().toString(36).slice(2, 7);
-    }
+    ws.onopen = () => console.log("Connected");
+    ws.onclose = () => {
+      statusDot.style.background = "red";
+      console.log("Disconnected");
+    };
 
-    // helper - append committed messages to top area
-    function appendMessage(msg) {
-      const el = document.createElement("div");
-      el.className = "message";
-      el.innerHTML = `<div>${escapeHtml(msg.text)}</div>
-                      <div class="meta">${msg.from === userId ? "You" : `Peer (${msg.from})`} • ${new Date(msg.ts).toLocaleTimeString()}</div>`;
-      messagesEl.appendChild(el);
-      // auto-scroll to bottom of top area
-      const top = document.getElementById("top");
-      top.scrollTop = top.scrollHeight;
-    }
+    ws.onmessage = (e) => {
+      const data = JSON.parse(e.data);
 
-    function setParticipants(n) {
-      participantsEl.textContent = `Participants: ${n}`;
-    }
-
-    // Guard function to escape HTML
-    function escapeHtml(s) {
-      return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    }
-
-    // Connect websocket for a given room
-    function connect(room) {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.close();
+      if (data.type === "typing") {
+        peerText.textContent = data.text || "";
+      } else if (data.type === "clear") {
+        peerText.textContent = "";
+        myInput.value = "";
+      } else if (data.type === "status") {
+        statusDot.style.background = data.connected ? "limegreen" : "red";
       }
+    };
 
-      ws = new WebSocket(WS_BASE);
-      ws.addEventListener('open', () => {
-        // join the room once socket is open
-        ws.send(JSON.stringify({ type: "join", room, userId }));
-      });
-
-      ws.addEventListener('message', (ev) => {
-        let data;
-        try {
-          data = JSON.parse(ev.data);
-        } catch (e) {
-          return;
-        }
-
-        if (data.type === 'history' && Array.isArray(data.history)) {
-          // initial history
-          messagesEl.innerHTML = '';
-          for (const m of data.history) appendMessage(m);
-        } else if (data.type === 'message' && data.message) {
-          appendMessage(data.message);
-        } else if (data.type === 'peerDraft') {
-          // update peer draft preview
-          // show only if draft non-empty, otherwise clear
-          const draft = data.draft || '';
-          peerDraftEl.textContent = draft;
-          // auto-scroll top area a little so the draft remains visible
-          const top = document.getElementById("top");
-          top.scrollTop = top.scrollHeight;
-        } else if (data.type === 'participants') {
-          setParticipants(data.count || 0);
-        }
-      });
-
-      ws.addEventListener('close', () => {
-        // show disconnected in participants
-        setParticipants(0);
-        // keep peerDraft cleared
-        peerDraftEl.textContent = '';
-      });
-
-      ws.addEventListener('error', () => {
-        // ignore visual errors - user can retry by joining again
-      });
-    }
-
-    // Send typing updates (throttle to avoid flooding)
-    let lastTypingSent = 0;
-    function sendTyping(draft) {
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      const now = Date.now();
-      // throttle to ~30 times per second at most
-      if (now - lastTypingSent < 33) return;
-      lastTypingSent = now;
-      ws.send(JSON.stringify({ type: "typing", draft }));
-    }
-
-    // Send commit (Enter)
-    function sendCommit(text) {
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      ws.send(JSON.stringify({ type: "commit", text }));
-    }
-
-    // UI: join button handler
-    joinBtn.addEventListener('click', () => {
-      const r = (roomInput.value || "").trim();
-      if (!r) return;
-      roomId = r;
-      connect(roomId);
-      // update URL to allow sharing
-      const url = new URL(location.href);
-      url.searchParams.set('room', roomId);
-      history.replaceState(null, "", url.toString());
+    // Send typing updates
+    myInput.addEventListener("input", () => {
+      ws.send(JSON.stringify({ type: "typing", text: myInput.value }));
     });
 
-    // Send button
-    sendBtn.addEventListener('click', () => {
-      const text = inputEl.value;
-      if (!text) return;
-      sendCommit(text);
-      // locally append for immediate feedback (server will also broadcast back)
-      appendMessage({ id: 'local-' + Date.now(), from: userId, text, ts: Date.now() });
-      inputEl.value = "";
-      // clear peer draft on send (not necessary but tidy)
-      ws && ws.send(JSON.stringify({ type: "typing", draft: "" }));
+    // Clear all messages both sides
+    clearBtn.addEventListener("click", () => {
+      ws.send(JSON.stringify({ type: "clear" }));
+      peerText.textContent = "";
+      myInput.value = "";
     });
-
-    // Clear button clears input and send an empty typing to remote
-    clearBtn.addEventListener('click', () => {
-      inputEl.value = "";
-      sendTyping("");
-    });
-
-    // Input: send typing updates character-by-character, also handle Enter submission
-    inputEl.addEventListener('input', (e) => {
-      // send current content as draft to peer
-      sendTyping(inputEl.value);
-    });
-
-    inputEl.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendBtn.click();
-      }
-    });
-
-    // Auto-join if initial room present
-    if (initialRoom) {
-      roomId = initialRoom;
-      connect(roomId);
-    }
-
-    // Ensure top area auto-scrolls when content changes
-    const topEl = document.getElementById('top');
-    const observer = new MutationObserver(() => {
-      topEl.scrollTop = topEl.scrollHeight;
-    });
-    observer.observe(messagesEl, { childList: true, subtree: false });
   </script>
 </body>
 </html>
