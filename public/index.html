@@ -21,9 +21,19 @@
       margin-bottom: 0.5rem;
     }
     #status {
-      font-size: 0.9rem;
-      color: #666;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.95rem;
+      color: #555;
       margin-bottom: 1rem;
+    }
+    #status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: red;
+      display: inline-block;
     }
     button {
       padding: 0.6rem 1.2rem;
@@ -48,46 +58,55 @@
 </head>
 <body>
   <h1>Latency Tester</h1>
-  <div id="status">Connecting to WebSocket...</div>
+  <div id="status">
+    <span id="status-dot"></span>
+    <span id="status-text">Connecting...</span>
+  </div>
   <div>
     <button id="pingBtn" disabled>Send Ping</button>
   </div>
   <div id="latency"></div>
 
   <script>
-    // === CONFIG ===
-    // Auto-detect if running locally or on Render
+    // === Auto-detect secure/insecure WebSocket ===
+    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
     const WS_URL =
       location.hostname === "localhost"
-        ? "ws://localhost:3000"
-        : `wss://${location.host}`;
+        ? `${protocol}//localhost:3000`
+        : `${protocol}//${location.host}`;
 
-    const status = document.getElementById("status");
+    const statusDot = document.getElementById("status-dot");
+    const statusText = document.getElementById("status-text");
     const latencyText = document.getElementById("latency");
     const pingBtn = document.getElementById("pingBtn");
 
     let ws;
     let lastTimestamp = 0;
 
+    function setStatus(connected) {
+      statusDot.style.background = connected ? "limegreen" : "red";
+      statusText.textContent = connected ? "Connected" : "Disconnected";
+    }
+
     function connectWebSocket() {
       ws = new WebSocket(WS_URL);
 
       ws.onopen = () => {
-        status.textContent = "Connected to server ✅";
+        setStatus(true);
         pingBtn.disabled = false;
       };
 
       ws.onclose = () => {
-        status.textContent = "Disconnected. Reconnecting...";
+        setStatus(false);
         pingBtn.disabled = true;
-        setTimeout(connectWebSocket, 2000); // auto-reconnect
+        setTimeout(connectWebSocket, 2000); // Auto-reconnect
       };
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
 
         if (data.type === "forwardedPing") {
-          // Partner receives ping → send echo back
+          // Partner receives ping → echo back
           ws.send(JSON.stringify({ type: "echo", timestamp: data.timestamp }));
         }
 
