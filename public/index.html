@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebSocket Latency Tester</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      text-align: center;
+      margin: 60px;
+    }
+    h2 {
+      margin-bottom: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    #ping {
+      font-size: 24px;
+      font-weight: 600;
+      color: #0a58ca;
+    }
+    #status {
+      margin-bottom: 20px;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <h2>WebSocket Latency Tester (A → S → B → S → A)</h2>
+  <div id="status">Connecting...</div>
+  <button id="pingBtn">Send Ping</button>
+  <p>Round-trip latency: <span id="ping">--</span> ms</p>
+
+  <script>
+    const ws = new WebSocket(`ws://${location.host}`);
+    const status = document.getElementById("status");
+    const pingDisplay = document.getElementById("ping");
+    const button = document.getElementById("pingBtn");
+
+    ws.onopen = () => (status.textContent = "Connected");
+    ws.onclose = () => (status.textContent = "Disconnected");
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === "forwardedPing") {
+        // Partner side: echo back
+        ws.send(JSON.stringify({ type: "echo", timestamp: data.timestamp }));
+      } else if (data.type === "echoBack") {
+        // Origin side: calculate round trip
+        const latency = Date.now() - data.timestamp;
+        pingDisplay.textContent = latency;
+      }
+    };
+
+    button.onclick = () => {
+      const timestamp = Date.now();
+      ws.send(JSON.stringify({ type: "ping", timestamp }));
+    };
+  </script>
+</body>
+</html>
