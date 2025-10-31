@@ -73,7 +73,7 @@ const interval = setInterval(() => {
     ws.isAlive = false;
     ws.ping();
   });
-}, 5000);
+}, 1000);
 
 wss.on("close", () => {
   clearInterval(interval);
@@ -83,3 +83,4 @@ const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
+
