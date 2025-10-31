@@ -1,6 +1,6 @@
 import express from "express";
-import http from "http";
 import { WebSocketServer } from "ws";
+import http from "http";
 
 const app = express();
 app.use(express.static("public"));
@@ -12,39 +12,27 @@ let clients = [];
 
 wss.on("connection", (ws) => {
   clients.push(ws);
-  updateStatus();
 
-  ws.on("message", (msg) => {
-    let data;
+  ws.on("message", (message) => {
     try {
-      data = JSON.parse(msg);
-    } catch {
-      return;
-    }
-
-    // forward message/draft/clear to all other clients
-    for (const client of clients) {
-      if (client !== ws && client.readyState === 1) {
-        client.send(JSON.stringify(data));
-      }
+      const data = JSON.parse(message);
+      // Broadcast to all except sender
+      clients.forEach((client) => {
+        if (client !== ws && client.readyState === 1) {
+          client.send(JSON.stringify(data));
+        }
+      });
+    } catch (err) {
+      console.error("Message parse error:", err);
     }
   });
 
   ws.on("close", () => {
     clients = clients.filter((c) => c !== ws);
-    updateStatus();
   });
 });
 
-// Notify all clients whether a peer is connected or not
-function updateStatus() {
-  const isConnected = clients.length > 1;
-  for (const c of clients) {
-    if (c.readyState === 1) {
-      c.send(JSON.stringify({ type: "status", connected: isConnected }));
-    }
-  }
-}
-
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const PORT = process.env.PORT || 8080;
+server.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
+});
