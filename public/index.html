@@ -72,6 +72,7 @@
     align-items: center;
     cursor: pointer;
     box-shadow: 0 0 6px rgba(0,0,0,0.3);
+    font-size: 18px;
   }
 
   .cursor-marker {
@@ -105,7 +106,10 @@
   </div>
 
 <script>
-  const ws = new WebSocket("wss://realtime-bridge.onrender.com");
+  // Use the same host as your deployed Render service
+  const wsProtocol = location.protocol === "https:" ? "wss" : "ws";
+  const ws = new WebSocket(`${wsProtocol}://${location.host}`);
+
   const statusDot = document.getElementById("statusDot");
   const localText = document.getElementById("localText");
   const remoteText = document.getElementById("remoteText");
@@ -113,20 +117,20 @@
 
   let clientId = Math.random().toString(36).substr(2, 5);
   let partnerCursor, partnerSelection;
-  let partnerScroll = false;
 
-  // Utility
+  // --- Utilities ---
   function setStatus(color){ statusDot.style.background = color; }
-  function sendMessage(type, data={}){
-    if(ws.readyState===WebSocket.OPEN){
-      ws.send(JSON.stringify({ type, id: clientId, ...data }));
-    }
+  function sendMessage(type, data={}) {
+    if(ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type, id: clientId, ...data }));
   }
 
-  // WebSocket events
+  function keepLastLineVisible(el){ el.scrollTop = el.scrollHeight; }
+  function removeMarkers(){ if(partnerCursor) partnerCursor.remove(); if(partnerSelection) partnerSelection.remove(); }
+
+  // --- WebSocket ---
   ws.onopen = () => setStatus("red");
-  ws.onmessage = e => handleMessage(JSON.parse(e.data));
   ws.onclose = () => setStatus("red");
+  ws.onmessage = e => handleMessage(JSON.parse(e.data));
 
   function handleMessage(d){
     if(d.id===clientId) return;
@@ -148,97 +152,85 @@
         break;
 
       case "scroll":
-        partnerScroll = true;
         remoteText.scrollTop = d.scroll;
-        setTimeout(()=>partnerScroll=false, 200);
         break;
 
       case "erase":
-        remoteText.value="";
+        remoteText.value = "";
         break;
     }
   }
 
-  // Input sync
-  localText.addEventListener("input", ()=>{
-    sendMessage("text",{ text: localText.value });
+  // --- Local text ---
+  localText.addEventListener("input", () => {
+    sendMessage("text", { text: localText.value });
     keepLastLineVisible(localText);
   });
 
-  // Cursor + selection sync
   ["select","keyup","click","touchend"].forEach(evt=>{
     localText.addEventListener(evt, sendCursorUpdate);
   });
 
   function sendCursorUpdate(){
-    sendMessage("cursor",{
+    sendMessage("cursor", {
       cursorPos: localText.selectionStart,
       selectionStart: localText.selectionStart,
       selectionEnd: localText.selectionEnd
     });
   }
 
-  // Scroll sync (debounced)
-  let lastScroll=0;
-  localText.addEventListener("scroll", ()=>{
-    if(Math.abs(localText.scrollTop-lastScroll)>2){
-      lastScroll=localText.scrollTop;
-      sendMessage("scroll",{ scroll: localText.scrollTop });
+  // Scroll sync
+  let lastScroll = 0;
+  localText.addEventListener("scroll", () => {
+    if(Math.abs(localText.scrollTop - lastScroll) > 2){
+      lastScroll = localText.scrollTop;
+      sendMessage("scroll", { scroll: localText.scrollTop });
     }
   });
 
-  // Show partner cursor + selection
-  function showRemoteCursor(pos,selStart,selEnd){
+  // Remote cursor + selection
+  function showRemoteCursor(pos, selStart, selEnd){
     removeMarkers();
-    const text=remoteText.value;
-    const before=text.substring(0,pos);
-    const lines=before.split("\n");
-    const lineIndex=lines.length-1;
-    const charIndex=lines[lineIndex].length;
+    const text = remoteText.value;
+    const before = text.substring(0, pos);
+    const lines = before.split("\n");
+    const lineIndex = lines.length-1;
+    const charIndex = lines[lineIndex].length;
 
-    const lineHeight=28;
-    const charWidth=12;
+    const lineHeight = 28;
+    const charWidth = 12;
 
-    const topOffset=lineIndex*lineHeight+6;
-    const leftOffset=(charIndex*charWidth)+(remoteText.clientWidth/2)-(text.length?0:10);
+    const topOffset = lineIndex*lineHeight+6;
+    const leftOffset = charIndex*charWidth + (remoteText.clientWidth/2) - (text.length?0:10);
 
-    const cursor=document.createElement("div");
-    cursor.className="cursor-marker";
-    cursor.style.top=topOffset+"px";
-    cursor.style.left=leftOffset+"px";
-    cursor.style.height=lineHeight+"px";
+    const cursor = document.createElement("div");
+    cursor.className = "cursor-marker";
+    cursor.style.top = topOffset+"px";
+    cursor.style.left = leftOffset+"px";
+    cursor.style.height = lineHeight+"px";
     remoteText.parentElement.appendChild(cursor);
-    partnerCursor=cursor;
+    partnerCursor = cursor;
 
-    if(selEnd>selStart){
-      const selection=document.createElement("div");
-      selection.className="selection-overlay";
-      selection.style.top=topOffset+"px";
-      selection.style.left=leftOffset+"px";
-      selection.style.width=(selEnd-selStart)*charWidth+"px";
-      selection.style.height=lineHeight+"px";
+    if(selEnd > selStart){
+      const selection = document.createElement("div");
+      selection.className = "selection-overlay";
+      selection.style.top = topOffset+"px";
+      selection.style.left = leftOffset+"px";
+      selection.style.width = (selEnd-selStart)*charWidth+"px";
+      selection.style.height = lineHeight+"px";
       remoteText.parentElement.appendChild(selection);
-      partnerSelection=selection;
+      partnerSelection = selection;
     }
   }
 
-  function removeMarkers(){
-    if(partnerCursor) partnerCursor.remove();
-    if(partnerSelection) partnerSelection.remove();
-  }
-
-  function keepLastLineVisible(el){
-    el.scrollTop=el.scrollHeight;
-  }
-
-  // Erase sync
-  eraseBtn.onclick=()=>{
+  // --- Erase ---
+  eraseBtn.onclick = () => {
     localText.value="";
     sendMessage("text",{ text:"" });
     sendMessage("erase",{});
   };
 
-  // Ping every 1s
+  // --- Heartbeat ping ---
   setInterval(()=>sendMessage("ping",{}),1000);
 </script>
 </body>
