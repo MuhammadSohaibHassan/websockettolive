@@ -23,12 +23,20 @@
       flex: 1;
       background: white;
       color: black;
-      overflow-y: auto;
       display: flex;
       justify-content: center;
-      align-items: flex-start;
+      align-items: flex-end;
+      overflow-y: auto;
+    }
+
+    #display {
+      width: 100%;
       text-align: center;
-      padding: 0;
+      font-size: 1.3rem;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      box-sizing: border-box;
+      padding: 6px;
     }
 
     .bottom {
@@ -38,17 +46,6 @@
       display: flex;
       justify-content: center;
       align-items: flex-start;
-      text-align: center;
-      padding: 0;
-    }
-
-    #display {
-      width: 100%;
-      word-wrap: break-word;
-      font-size: 1.2rem;
-      white-space: pre-wrap;
-      padding: 4px;
-      box-sizing: border-box;
     }
 
     #input {
@@ -56,19 +53,22 @@
       height: 100%;
       background: black;
       color: white;
+      font-size: 1.3rem;
       border: none;
       outline: none;
-      font-family: monospace;
-      font-size: 1.2rem;
       resize: none;
-      padding: 4px;
+      font-family: monospace;
+      text-align: center; /* horizontal centering */
+      line-height: 1.4;
+      padding: 6px;
       box-sizing: border-box;
+      overflow-y: auto;
     }
 
     #status {
       position: fixed;
-      top: 6px;
-      left: 6px;
+      top: 8px;
+      left: 8px;
       width: 10px;
       height: 10px;
       border-radius: 50%;
@@ -80,15 +80,19 @@
 <body>
   <div id="status"></div>
   <div class="container">
-    <div class="top"><div id="display"></div></div>
-    <div class="bottom"><textarea id="input" placeholder="Type..."></textarea></div>
+    <div class="top">
+      <div id="display"></div>
+    </div>
+    <div class="bottom">
+      <textarea id="input" placeholder="Type..." spellcheck="false"></textarea>
+    </div>
   </div>
 
   <script>
     const wsProtocol = location.protocol === "https:" ? "wss" : "ws";
     const socket = new WebSocket(`${wsProtocol}://${location.host}`);
-    const input = document.getElementById("input");
     const display = document.getElementById("display");
+    const input = document.getElementById("input");
     const status = document.getElementById("status");
 
     socket.onopen = () => { status.style.background = "limegreen"; };
@@ -98,13 +102,12 @@
       const data = JSON.parse(event.data);
       if (data.type === "textSync") {
         display.textContent = data.text;
-        display.scrollTop = display.scrollHeight; // always show last line
+        display.scrollTop = display.scrollHeight; // ensure last line visible
       }
     };
 
     input.addEventListener("input", () => {
-      const text = input.value;
-      socket.send(JSON.stringify({ type: "textSync", text }));
+      socket.send(JSON.stringify({ type: "textSync", text: input.value }));
     });
   </script>
 </body>
